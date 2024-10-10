@@ -1,0 +1,318 @@
+---
+title: "R Notebook"
+output:
+  pdf_document: default
+  html_notebook: default
+---
+
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code.
+
+Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Ctrl+Shift+Enter*.
+
+```{r}
+plot(cars)
+```
+
+Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Ctrl+Alt+I*.
+
+When you save the notebook, an HTML file containing the code and output will be saved alongside it (click the *Preview* button or press *Ctrl+Shift+K* to preview the HTML file).
+
+The preview shows you a rendered HTML copy of the contents of the editor. Consequently, unlike *Knit*, *Preview* does not run any R code chunks. Instead, the output of the chunk when it was last run in the editor is displayed.
+
+# 1 Data Inspection
+
+```{r}
+# Load necessary libraries
+library(readr)
+library(dplyr)
+library(stringr)
+```
+
+### Loading the Dataset
+
+```{r}
+# Load the dataset with the correct delimiter using read_delim
+df <- read_delim("C:/Users/rikis/OneDrive - Politecnico di Milano/Desktop/HPC/2.ES_Semestre/2.ES_MULTIVARIATE ANALYSIS/HW_1/euroleague_23_24.csv", delim = ";", col_types = cols(.default = "c"))
+```
+
+### a) Discard the variable “No” from the data set.
+
+```{r include=FALSE}
+# Now check the column names
+colnames(df)
+# Dropping NO Column
+df <- df[ , !(colnames(df) %in% "No")]
+```
+
+### b) Split variable “Min” using strsplit() function. Give the name “aux” to the output. The first element of each row will show the minutes that the player played in total.
+
+```{r}
+# Split the "Min" column by colon and extract hours and minutes
+df$Min_split <- str_split(df$Min, ":", simplify = TRUE)
+
+# Convert the time to total minutes
+df$Min_total <- as.numeric(df$Min_split[,1]) * 60 + as.numeric(df$Min_split[,2])
+```
+
+### c) Add a numerical variable to the data set named “Min 2” which shows on average how many minutes each player played in the game.
+
+```{r}
+# Create the "Min 2" column as average minutes per game
+df$Min_2 <- as.numeric(df$Min_total) / as.numeric(df$GP)
+```
+
+### d) Check the structure of the data and assign correct type to each variable considering whether it is a categorical or numerical variable.
+
+```{r include=FALSE}
+# Load necessary libraries
+library(dplyr)
+
+# Remove 'Min' and 'Min_split' columns from the dataframe
+df <- df %>% select(-Min, -Min_split)
+
+# Verify the columns have been removed by checking the structure of the dataframe
+str(df)
+
+
+# Identify numeric columns (which are stored as characters and need conversion)
+numeric_cols <- c("GP", "GS", "PTS", "2P%", "3P%", "FT%", "OR", "DR", "TR", 
+                  "AST", "STL", "TO", "BLK", "BLKA", "FC", "FD", "PIR")
+
+# Step 1: Remove percentage signs (%) and replace commas with dots (.)
+df[numeric_cols] <- df[numeric_cols] %>% 
+  lapply(function(x) gsub("%", "", x)) %>%  # Remove '%' if present
+  lapply(function(x) gsub(",", ".", x))     # Replace commas with dots for decimals
+
+# Step 2: Convert the columns to numeric
+df[numeric_cols] <- lapply(df[numeric_cols], as.numeric)
+
+# Step 3: Check for NA values in numeric columns (this will highlight any problematic conversions)
+na_count <- sapply(df[numeric_cols], function(x) sum(is.na(x)))
+print(na_count)
+
+# Step 4: Check the structure of the dataset to ensure proper conversions
+str(df)
+
+# Step 5: Get the updated numeric columns
+numeric_columns <- names(df)[sapply(df, is.numeric)]
+print(numeric_columns)
+
+# Step 6: Get categorical columns (including factors)
+categorical_columns <- names(df)[sapply(df, is.factor) | sapply(df, is.character)]
+print(categorical_columns)
+
+```
+
+# 2 PCA
+
+### a) Apply PCA on all the scaled numerical variables in the data set by using PCA() function in FactoMineR package. Treat the categorical variables and the variable “PIR” as suplemantary variables using arguments quali.sup and quanti.sup correctly.
+
+```{r include=FALSE}
+# Install the FactoMineR and factoextra packages if you don't have them
+install.packages("FactoMineR")
+install.packages("factoextra")
+library(FactoMineR)
+```
+
+```{r include=FALSE}
+# Remove leading and trailing spaces from column names
+colnames(df) <- trimws(colnames(df))
+
+# Check the column names again to confirm the changes
+colnames(df)
+
+# Step 1: Select the numerical variables, excluding 'PIR' for now
+numerical_vars <- df[, sapply(df, is.numeric) & names(df) != "PIR"]
+
+# Scale the numerical variables
+scaled_data <- scale(numerical_vars)
+
+# Step 2: Keep the qualitative variables (TEAM, POSITION) and PIR (quantitative supplementary)
+qualitative_vars <- df[, c("TEAM", "POSITION")]
+pir <- df[, "PIR"]
+
+# Combine the scaled numerical data with the qualitative and PIR variables
+combined_data <- cbind(scaled_data, qualitative_vars, pir)
+
+
+# Perform PCA, treating "TEAM" and "POSITION" as supplementary qualitative variables,
+# and "PIR" as a supplementary quantitative variable
+pca_result <- PCA(combined_data, 
+                  quali.sup = which(names(combined_data) %in% c("TEAM", "POSITION")), 
+                  quanti.sup = which(names(combined_data) == "PIR"), 
+                  graph = FALSE)
+```
+
+```{r}
+# Plot individuals (e.g., players), with grouping by "TEAM"
+plot.PCA(pca_result, choix = "ind", axes = c(1, 2), habillage = "TEAM", addEllipses = TRUE)
+```
+
+```{r}
+# Plot individuals (e.g., players), with grouping by "TEAM"
+plot.PCA(pca_result, choix = "ind", axes = c(1, 2), habillage = "POSITION", addEllipses = TRUE)
+```
+
+```{r}
+# Plot variables (correlation circle)
+plot.PCA(pca_result, choix = "var", axes = c(1, 2))
+```
+
+> OSS
+>
+> -   **GP** (Games Played), **PTS** (Points), **TR** (Total Rebounds), and **DR** (Defensive Rebounds) have high contributions to Dim.1. This suggests that Dim.1 captures general player activity or performance.
+>
+> -   **OR** (Offensive Rebounds), **AST** (Assists), and **3P%** (Three-point percentage) contribute more to Dim.2 and Dim.3, indicating they capture more specific aspects of performance, like offensive skills or passing abilities.
+
+### b) Determine the Number of Components to Extract
+
+```{r}
+# Load the factoextra library
+library(factoextra)
+
+# Assuming 'pca_result' is the result of your PCA analysis
+# Scree plot to visualize the eigenvalues
+fviz_eig(pca_result, addlabels = TRUE, ylim = c(0, 60))
+```
+
+> OSS 1. **Kaiser Criterion (Eigenvalues \> 1)**:
+>
+> -   The Kaiser criterion suggests retaining components with an eigenvalue greater than 1. In your case, the eigenvalues for the first **four components** are greater than 1:
+>     -   Dim.1: 8.986
+>     -   Dim.2: 2.441
+>     -   Dim.3: 1.508
+>     -   Dim.4: 0.998 (this is very close to 1 but just below it)
+>
+> Based on this criterion, you should retain **3 or 4 components**.
+>
+> 2.  **Cumulative Variance Explained**:
+>
+> -   You typically aim to retain enough components to explain at least 70% to 80% of the total variance.
+> -   From the scree plot and eigenvalue table, we see:
+>     -   **Dim.1** and **Dim.2** together explain about **63.48%** of the total variance.
+>     -   Adding **Dim.3** gives a total of **71.86%**.
+>     -   Adding **Dim.4** increases this to **77.40%**.
+
+### c) Interpret the loadings/correlations of variables at each dimension
+
+```{r include=FALSE}
+# Get the loadings (correlation between variables and principal components)
+loadings <- pca_result$var$coord
+
+# View the loadings
+print(loadings)
+
+# Sort variables by their contribution to each principal component
+top_loadings_dim1 <- loadings[order(abs(loadings[,1]), decreasing = TRUE), 1]
+top_loadings_dim2 <- loadings[order(abs(loadings[,2]), decreasing = TRUE), 2]
+
+# View the top loadings for Dim1 and Dim2
+print(top_loadings_dim1)
+print(top_loadings_dim2)
+```
+
+$$\begin{bmatrix} \text{ } & \text{dim 1} & \text{dim 2} & \text{ dim 3} & \text{dim 4} & \text{dim 5} \\ \text{GP} & 0.85687222 & -0.11486900 & -0.31775776 & 0.01804263 & 0.01727870 \\ \text{GS} & 0.76402405 & -0.07753788 & 0.18749346 & 0.15397436 & 0.27133396 \\ \text{PTS} & 0.90123856 & -0.14650648 & 0.12786493 & 0.15999545 & -0.04516577 \\ \text{2P%} & 0.45749627 & 0.33957340 & -0.46348339 & -0.29803450 & 0.18708070 \\ \text{3%} & 0.09423746 & -0.48561287 & -0.23973732 & -0.76631509 & 0.10846051 \\ \text{FT%} & 0.61447440 & -0.11809966 & -0.50615410 & -0.19206702 & 0.02201026 \\ \text{OR} & 0.63284824 & 0.68059138 & 0.08009407 & 0.00093709 & 0.01327233 \\ \text{DR} & 0.86356358 & 0.27640035 & 0.09852997 & 0.19639861 & 0.11237273 \\ \text{TR} & 0.83542008 & 0.44362051 & 0.00765144 & 0.18708070 & 0.08792645 \\ \text{AST} & 0.60135464 & -0.56219169 & 0.15200348 & -0.24117852 & -0.18119268 \\ \text{STL} & 0.72459441 & -0.40032514 & 0.03039414 & -0.07551659 & 0.18928933 \\ \text{TO} & 0.81603210 & -0.31676517 & 0.10189066 & 0.00429364 & 0.09477865 \\ \text{BLK} & 0.34718728 & 0.79605068 & 0.01788220 & 0.07074070 & 0.47709564 \\ \text{BLKA} & 0.58862520 & -0.21749297 & 0.29806622 & 0.11839537 & 0.26446647 \\ \text{FC} & 0.81784142 & -0.03330554 & -0.14495746 & 0.08700361 & 0.19487947 \\ \text{FD} & 0.83655868 & 0.14245838 & 0.23624674 & 0.13704967 & 0.17646079 \\ \text{Min_total} & 0.95451485 & -0.13153194 & 0.05948906 & 0.09418074 & 0.05140451 \\ \text{Min_2} & -0.34190991 & 0.04512421 & 0.75170630 & -0.09148074 & 0.29524525 \\ \end{bmatrix}$$
+
+> OSS : **Overall Interpretation**:
+>
+> -   **Dim.1**: Represents **general player activity and performance**, encompassing both positive and negative contributions across different areas of the game, with a focus on court time, points, and rebounds.
+> -   **Dim.2**: Reflects a divide between **defensive/physical presence** (blocks, offensive rebounds) and **offensive playmaking and shooting efficiency** (assists, three-point shooting). Players excelling in defensive skills might not be as proficient in offensive finesse.
+>
+> This distinction between the two components provides insight into how players perform in different areas, separating general contribution from more specific skills such as defense or playmaking
+
+### d) Plot Correlations Between Variables and Extracted Dimensions
+
+```{r}
+# 1. Generate variable plot for the first two dimensions (Dim.1 and Dim.2)
+plot.PCA(pca_result, choix = "var", axes = c(1, 2))
+```
+
+```{r}
+# 2. Generate variable plot for Dimension 1 vs Dimension 3
+plot.PCA(pca_result, choix = "var", axes = c(1, 3))
+```
+
+```{r}
+# 3. Generate variable plot for Dimension 2 vs Dimension 3
+plot.PCA(pca_result, choix = "var", axes = c(2, 3))
+```
+
+### e) Interpret variable plots. How can each dimension be named?
+
+> OSS \### Brief Interpretation of Variable Plots and Naming of Components:
+>
+> 1.  **Component 1 (Dim.1)**:
+>     -   **Variable Grouping**: Strong loadings from **Min_total**, **PTS**, **DR**, **GP**, **TR**, and **FD**.
+>     -   **Theme**: This component reflects **Overall Player Activity and Performance**, encompassing total minutes played, points, rebounds, and games played.
+>     -   **Suggested Name**: "General Performance and Activity"
+> 2.  **Component 2 (Dim.2)**:
+>     -   **Variable Grouping**: High loadings for **BLK**, **OR**, and **TR**, with negative loadings for **AST**, **3P%**, and **STL**.
+>     -   **Theme**: This component distinguishes **Defensive/Physical Play** (blocks, offensive rebounds) from **Playmaking and Shooting Efficiency** (assists, 3-point percentage).
+>     -   **Suggested Name**: "Defensive vs. Offensive Play"
+>
+> By identifying the key variables and their groupings in each dimension, these names capture the essence of the components based on the most influential factors.
+
+### f) Show Individual Profiles for Extracted Dimensions
+
+```{r}
+# 1. Plot individuals for the first two dimensions (Dim.1 and Dim.2)
+plot.PCA(pca_result, choix = "ind", axes = c(1, 2))
+```
+
+```{r}
+# 2. Plot individuals for Dimension 1 vs Dimension 3
+plot.PCA(pca_result, choix = "ind", axes = c(1, 3))
+```
+
+```{r}
+# 3. Plot individuals for Dimension 2 vs Dimension 3
+plot.PCA(pca_result, choix = "ind", axes = c(2, 3))
+```
+
+```{r}
+# You can also customize the appearance (e.g., adding labels, colors):
+# For example, you can color individuals by groups (e.g., team) if you have categorical data
+plot.PCA(pca_result, choix = "ind", axes = c(1, 2), habillage = "TEAM", addEllipses = TRUE)
+```
+
+```{r}
+# You can also customize the appearance (e.g., adding labels, colors):
+# For example, you can color individuals by groups (e.g., team) if you have categorical data
+plot.PCA(pca_result, choix = "ind", axes = c(1, 2), habillage = "POSITION", addEllipses = TRUE)
+```
+
+**Cluster**
+
+-Black (Center): Players labeled as "Center" are generally spread across the right side of the plot, but many are located toward the top right. These players might have higher values for both overall performance (Dim 1) and specific performance metrics (Dim 2). -Red (Forward): Forwards are generally dispersed across the middle section, indicating that their performance is more varied. Some forwards are strong overall (to the right), while others have moderate performance (closer to the center). -Green (Guard): Guards are spread across the lower-left quadrant, suggesting that many of them might have lower performance overall (Dim 1) and lower shooting metrics (Dim 2). Some, however, are closer to the center or lower right, indicating a varied distribution of guards.
+
+**Outliers** - Player 11 (black dot, center): This player is far to the right on Dim 1, meaning they likely excel in overall performance metrics such as points scored, rebounds, and games played. They may have outstanding contributions to the game. - Player 27 and 28 (black dots, center): These players are similar to Player 11 but slightly higher on Dim 2, suggesting strong shooting metrics in addition to overall performance. - Players 59 and 57 (black and red): These players are at the top of Dim 2, indicating strong shooting efficiency (likely 3-point or free throw percentage). However, they are further to the left on Dim 1, meaning their overall contributions (like points or rebounds) may not be as high as some others.
+
+# 3 Multidimensional Scaling
+
+```{r}
+
+```
+
+```{r}
+
+```
+
+```{r}
+
+```
+
+```{r}
+
+```
+
+```{r}
+
+```
+
+```{r}
+
+```
+
+```{r}
+
+```
