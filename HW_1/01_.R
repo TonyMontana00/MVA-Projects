@@ -3,61 +3,76 @@ library(readr)
 library(dplyr)
 library(stringr)
 
+# getwd()
+
+# Karol:
+#setwd("MVA-Projects/HW_1")
+
 # Load the dataset with the correct delimiter using read_delim
-df <- read_delim("C:/Users/rikis/OneDrive - Politecnico di Milano/Desktop/HPC/2.ES_Semestre/2.ES_MULTIVARIATE ANALYSIS/HW_1/euroleague_23_24.csv", delim = ";", col_types = cols(.default = "c"))
+df <- read_delim("./euroleague_23_24.csv", delim = ";", col_types = cols(.default = "c"))
 
 # Now check the column names
 colnames(df)
 
+
+#============================================================================
+###### Task 1 ###########
+## TASK 1a
 # Dropping NO Column
 df <- df[ , !(colnames(df) %in% "No")]
 
-#3 Splitting the "Min" Column
+## TASK 1b
+# Splitting the "Min" Column
 
 # Split the "Min" column by colon and extract hours and minutes
 df$Min_split <- str_split(df$Min, ":", simplify = TRUE)
 
 # Convert the time to total minutes
 df$Min_total <- as.numeric(df$Min_split[,1]) * 60 + as.numeric(df$Min_split[,2])
+# TODO: Question: I do not understand, what df$Min contains, and what df$aux shall store 
+df$aux <- df$Min_total
 
+## TASK 1c
 # 4. Creating "Min 2"
 # Create the "Min 2" column as average minutes per game
 df$Min_2 <- as.numeric(df$Min_total) / as.numeric(df$GP)
 
+## TASK 1d
+int_cols <- c("GP", "GS")
+perct_cols <- c(`2P%`, `3P%`, `FT%`)
+float_cols <- c("PTS", "OR", "DR", "TR", "AST", "STL", "TO", "BLK", "BLKA", "FC", "FD", "PIR" )
+numeric_cols <- c(int_cols, perct_cols, float_cols)
+numeric_cols
 
-
-
-#5. Converting Variables to Appropriate Types
-# Function to check for non-numeric values in each column
-check_numeric_conversion <- function(column) {
-  as.numeric(column)  # Attempt to convert to numeric
-}
-
-# Remove percentage signs (%) and replace commas with dots for decimal points
-df[numeric_cols] <- df[numeric_cols] %>% 
-  lapply(function(x) gsub("%", "", x)) %>%   # Remove '%' if present
-  lapply(function(x) gsub(",", ".", x))      # Replace commas with dots for decimals
-
-# Now convert them to numeric
-df[numeric_cols] <- lapply(df[numeric_cols], as.numeric)
-
+# Show structure
+str(df)
 # Check for NA values in numeric columns
 sapply(df[numeric_cols], function(x) sum(is.na(x)))
+
+# Remove '%'
+df[perct_cols] <- lapply(df[perct_cols], function(x) gsub("%", ".", x))
+# Replace ',' with '.'
+df[float_cols] <- lapply(df[float_cols], function(x) gsub(",", ".", x))
+df[perct_cols] <- lapply(df[perct_cols], function(x) gsub(",", ".", x))
+# Parse strings to numbers
+df[numeric_cols] <- lapply(df[numeric_cols], as.numeric)
 
 # Check the structure of the dataset
 str(df)
 
 # Get numeric columns
 numeric_columns <- names(df)[sapply(df, is.numeric)]
-print(numeric_columns)
+print("Numerical columns")
+numeric_columns
 
 # Get categorical columns (including factors)
-categorical_columns <- names(df)[sapply(df, is.factor)]
-print(categorical_columns)
-
+categorical_columns <- names(df)[sapply(df, is.character)]
+print("Categorical columns")
+categorical_columns
 
 #============================================================================
-#####  PCA
+###### Task 2 ###########
+###### PCA
 # Install the FactoMineR and factoextra packages if you don't have them
 install.packages("FactoMineR")
 install.packages("factoextra")
