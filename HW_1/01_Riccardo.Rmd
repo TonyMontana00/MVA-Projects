@@ -3,21 +3,9 @@ title: "R Notebook"
 output:
   pdf_document: default
   html_notebook: default
+editor_options: 
+  chunk_output_type: inline
 ---
-
-This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code.
-
-Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Ctrl+Shift+Enter*.
-
-```{r}
-plot(cars)
-```
-
-Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Ctrl+Alt+I*.
-
-When you save the notebook, an HTML file containing the code and output will be saved alongside it (click the *Preview* button or press *Ctrl+Shift+K* to preview the HTML file).
-
-The preview shows you a rendered HTML copy of the contents of the editor. Consequently, unlike *Knit*, *Preview* does not run any R code chunks. Instead, the output of the chunk when it was last run in the editor is displayed.
 
 # 1 Data Inspection
 
@@ -32,26 +20,40 @@ library(stringr)
 
 ```{r}
 # Load the dataset with the correct delimiter using read_delim
-df <- read_delim("C:/Users/rikis/OneDrive - Politecnico di Milano/Desktop/HPC/2.ES_Semestre/2.ES_MULTIVARIATE ANALYSIS/HW_1/euroleague_23_24.csv", delim = ";", col_types = cols(.default = "c"))
+
+df <- read_delim("euroleague_23_24.csv", delim = ";", col_types = cols(.default = "c"))
+
 ```
 
 ### a) Discard the variable “No” from the data set.
 
-```{r include=FALSE}
-# Now check the column names
-colnames(df)
+```{r}
+# include=FALSE}
 # Dropping NO Column
 df <- df[ , !(colnames(df) %in% "No")]
+# Now check the column names
+colnames(df)
 ```
 
 ### b) Split variable “Min” using strsplit() function. Give the name “aux” to the output. The first element of each row will show the minutes that the player played in total.
 
 ```{r}
-# Split the "Min" column by colon and extract hours and minutes
+# Split the "Min" column by colon to separate minutes and seconds
 df$Min_split <- str_split(df$Min, ":", simplify = TRUE)
 
-# Convert the time to total minutes
-df$Min_total <- as.numeric(df$Min_split[,1]) * 60 + as.numeric(df$Min_split[,2])
+# Convert the time (minutes and seconds) into total minutes
+df$Min_total <- as.numeric(df$Min_split[,1]) + (as.numeric(df$Min_split[,2]) / 60)
+# df$Min_total <- as.numeric(df$Min_split[,1]) * 60 + as.numeric(df$Min_split[,2])
+
+# Round the total minutes to 2 significant digits
+df$Min_total <- round(df$Min_total, 2)
+
+# Saving the output with "aux"
+df$aux <- df$Min_total
+
+# Check the new "Min_total" column
+head(df$Min_total)
+
 ```
 
 ### c) Add a numerical variable to the data set named “Min 2” which shows on average how many minutes each player played in the game.
@@ -59,6 +61,7 @@ df$Min_total <- as.numeric(df$Min_split[,1]) * 60 + as.numeric(df$Min_split[,2])
 ```{r}
 # Create the "Min 2" column as average minutes per game
 df$Min_2 <- as.numeric(df$Min_total) / as.numeric(df$GP)
+head(df$Min_2)
 ```
 
 ### d) Check the structure of the data and assign correct type to each variable considering whether it is a categorical or numerical variable.
@@ -109,8 +112,6 @@ print(categorical_columns)
 
 ```{r include=FALSE}
 # Install the FactoMineR and factoextra packages if you don't have them
-install.packages("FactoMineR")
-install.packages("factoextra")
 library(FactoMineR)
 ```
 
@@ -289,30 +290,80 @@ plot.PCA(pca_result, choix = "ind", axes = c(1, 2), habillage = "POSITION", addE
 
 # 3 Multidimensional Scaling
 
-```{r}
-
-```
+### a) Apply metric MDS using Euclidean distance on scaled numerical variables.
 
 ```{r}
+# Load necessary libraries
+library(cluster)
+library(labdsv)
+
+# Scale the numerical variables (excluding any non-numeric ones)
+scaled_data <- scale(df[, sapply(df, is.numeric)])
+
+# Compute the Euclidean distance matrix
+dist_matrix <- dist(scaled_data)
+
+# Apply MDS
+mds_result_euclidean <- cmdscale(dist_matrix, eig = TRUE)
+
+# Check the MDS result
+mds_points_euclidean <- mds_result_euclidean$points
+
 
 ```
-
+### b) Plot the data using the points on the first two coordinates using players names as label
 ```{r}
-
+# Plot the MDS points
+plot(mds_points_euclidean[, 1], mds_points_euclidean[, 2],
+     xlab = "Coordinate 1", ylab = "Coordinate 2",
+     main = "MDS with Euclidean Distance", type = "n")  # type = "n" to set up the plot without points
+text(mds_points_euclidean[, 1], mds_points_euclidean[, 2],
+     labels = df$PLAYER, cex = 0.7, pos = 4) 
 ```
+### c) Interpret the plot.
 
+### d) Calculate gower distance including variable “POSITION” to the data matrix.
 ```{r}
+# Load necessary library
+library(cluster)
+
+# Calculate Gower distance
+gower_distance <- daisy(scaled_data, metric = "gower")
+
+# Display the Gower distance
+gower_distance
 
 ```
-
+### e) Apply metric MDS on gower distance matrix.
 ```{r}
+# Apply MDS to Gower distance
+mds_result_gower <- cmdscale(gower_distance, eig = TRUE)
+
+# Check the MDS result
+mds_points_gower <- mds_result_gower$points
 
 ```
-
+### f) Plot individual plots on the first two coordinates
 ```{r}
+# Plot the MDS points for Gower distance
+plot(mds_points_gower[, 1], mds_points_gower[, 2],
+     xlab = "Coordinate 1", ylab = "Coordinate 2",
+     main = "MDS with Gower Distance", type = "n")
+text(mds_points_gower[, 1], mds_points_gower[, 2],
+     labels = df$PLAYER, cex = 0.7, pos = 4)  # Adjust as needed
 
 ```
+### g) Use different categorical and numerical variables as labels so as to explain clusters that are constructed.
+```{r}
+# Add position as labels
+plot(mds_points_gower[, 1], mds_points_gower[, 2],
+     xlab = "Coordinate 1", ylab = "Coordinate 2",
+     main = "MDS with Gower Distance by Position", type = "n")
+text(mds_points_gower[, 1], mds_points_gower[, 2],
+     labels = df$POSITION, cex = 0.7, pos = 4)  # Replace 'Position' with the actual column name for position
 
+```
+### h) Which MDS do you think better group the individuals? Why?
 ```{r}
 
 ```
