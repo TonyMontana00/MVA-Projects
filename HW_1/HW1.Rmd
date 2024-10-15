@@ -494,36 +494,6 @@ plot(mds_points_gower[, 1], mds_points_gower[, 2],
   text(mds_points_gower[, 1], mds_points_gower[, 2],
        labels = df$TEAM,  col = color_map[df$TEAM], cex = 0.7, pos = 4)
 ```
-
-#### PIR
-  
-```{r}
-values <- df$PIR
-
-# Define a function to create a color gradient from black to red
-create_gradient <- function(n) {
-  colorRampPalette(c("navy", "red"))(n)
-}
-
-# normalize PIR color map
-p <- values
-num_colors <- 100  # You can adjust this as needed
-p_norm <- (p - min(p)) / (max(p) - min(p)) * (num_colors - 1) + 1
-point_colors <- create_gradient(num_colors)[as.integer(p_norm)]
-
-# PIR color plot
-plot(mds_points_gower[, 1], mds_points_gower[, 2],
-     xlab = "Coordinate 1", ylab = "Coordinate 2",
-     type = "n",
-     col = point_colors, pch = 19)
-text(mds_points_gower[, 1], mds_points_gower[, 2],
-     labels = values, cex = 0.7, pos = 4,
-     col = point_colors
-     )
-
-
-```
-
 ### h) Which MDS do you think better group the individuals? Why?
 ```{r}
 
