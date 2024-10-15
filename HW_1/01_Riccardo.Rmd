@@ -297,6 +297,7 @@ plot.PCA(pca_result, choix = "ind", axes = c(1, 2), habillage = "POSITION", addE
 library(cluster)
 library(labdsv)
 
+
 # Scale the numerical variables (excluding any non-numeric ones)
 scaled_data <- scale(df[, sapply(df, is.numeric)])
 
@@ -308,8 +309,6 @@ mds_result_euclidean <- cmdscale(dist_matrix, eig = TRUE)
 
 # Check the MDS result
 mds_points_euclidean <- mds_result_euclidean$points
-
-
 ```
 ### b) Plot the data using the points on the first two coordinates using players names as label
 ```{r}
@@ -318,30 +317,98 @@ plot(mds_points_euclidean[, 1], mds_points_euclidean[, 2],
      xlab = "Coordinate 1", ylab = "Coordinate 2",
      main = "MDS with Euclidean Distance", type = "n")  # type = "n" to set up the plot without points
 text(mds_points_euclidean[, 1], mds_points_euclidean[, 2],
-     labels = df$PLAYER, cex = 0.7, pos = 4) 
+     labels = df$PLAYER, cex = 0.7, pos = 4)
+
 ```
 ### c) Interpret the plot.
+- Interpretation based on the plotted names is hard, as the names are too close together.
+- Additionally, names do not directly contain any insights about the players attributes.
+- Therefore:
+  - plot as points and add color map for PIR and POSTION
+  - This reveals:
+    - cord 1: is rougthly explained by PIR
+    - cord 2: is rougthly explained by POSTION
+  - but (!) no clear ends of areas indicating, that that similar players can fulfill diffrent roles/positions
+  - centers tend to be very diffrent to the rest of the players
+  
+```{r}
+# Define a function to create a color gradient from black to red
+create_black_red_palette <- function(n) {
+  colorRampPalette(c("blue", "red"))(n)
+}
+
+# Position color map
+positions <- unique(df$POSITION)
+position_colors <- rainbow(length(positions))  # You can use other color palettes too
+color_map <- setNames(position_colors, positions)
+
+# normalize PIR color map
+p <- df$PIR
+num_colors <- 100  # You can adjust this as needed
+p_norm <- (p - min(p)) / (max(p) - min(p)) * (num_colors - 1) + 1
+point_colors_pir <- create_black_red_palette(num_colors)[as.integer(p_norm)]
+
+# POSITION color plot
+plot(mds_points_euclidean[, 1], mds_points_euclidean[, 2],
+     xlab = "Coordinate 1", ylab = "Coordinate 2",
+     main = "MDS with Euclidean Distance (Position Colors)", 
+     type = "p",
+     col = color_map[df$POSITION], pch = 19)
+legend("topright", legend = positions, col = position_colors, pch = 19, title = "Position")
+
+# PIR color plot
+plot(mds_points_euclidean[, 1], mds_points_euclidean[, 2],
+     xlab = "Coordinate 1", ylab = "Coordinate 2",
+     main = "MDS with Euclidean Distance (PIR Colors)", 
+     type = "p",
+     col = point_colors_pir, pch = 19)
+  # Add text labels with corresponding colors
+text(mds_points_euclidean[, 1], mds_points_euclidean[, 2],
+     labels = values, cex = 0.7, pos = 4, col = point_colors_pir)
+```
+#### Unsupervised Clustering
+```{r}
+# Decide on the number of clusters (for example, k = 3)
+set.seed(123)  # For reproducibility
+k <- 3  # Change this number based on your analysis
+
+# Run K-means clustering
+kmeans_result <- kmeans(mds_points_euclidean, centers = k)
+
+# Extract the cluster assignments
+cluster_assignments <- kmeans_result$cluster
+
+# Plot the MDS points with cluster coloring
+plot(mds_points_euclidean[, 1], mds_points_euclidean[, 2],
+     xlab = "Coordinate 1", ylab = "Coordinate 2",
+     main = "MDS with Euclidean Distance and K-means Clustering", 
+     col = cluster_assignments, pch = 19)  # Use cluster assignments for coloring
+
+legend("topright", legend = paste("Cluster", 1:k), col = 1:k, pch = 19)
+
+```
 
 ### d) Calculate gower distance including variable “POSITION” to the data matrix.
 ```{r}
 # Load necessary library
 library(cluster)
 
+df$POSITION <- as.factor(df$POSITION)
+combined_data <- cbind(scaled_data, POSITION = df$POSITION)
+
 # Calculate Gower distance
-gower_distance <- daisy(scaled_data, metric = "gower")
+gower_distance <- daisy(combined_data, metric = "gower")
 
 # Display the Gower distance
-gower_distance
+# gower_distance
 
 ```
 ### e) Apply metric MDS on gower distance matrix.
 ```{r}
 # Apply MDS to Gower distance
 mds_result_gower <- cmdscale(gower_distance, eig = TRUE)
-
 # Check the MDS result
 mds_points_gower <- mds_result_gower$points
-
 ```
 ### f) Plot individual plots on the first two coordinates
 ```{r}
@@ -350,12 +417,12 @@ plot(mds_points_gower[, 1], mds_points_gower[, 2],
      xlab = "Coordinate 1", ylab = "Coordinate 2",
      main = "MDS with Gower Distance", type = "n")
 text(mds_points_gower[, 1], mds_points_gower[, 2],
-     labels = df$PLAYER, cex = 0.7, pos = 4)  # Adjust as needed
+     labels = df$PLAYER, cex = 0.5, pos = 4)  # Adjust as needed
 
 ```
 ### g) Use different categorical and numerical variables as labels so as to explain clusters that are constructed.
 ```{r}
-# Add position as labels
+# Add position as labels  
 plot(mds_points_gower[, 1], mds_points_gower[, 2],
      xlab = "Coordinate 1", ylab = "Coordinate 2",
      main = "MDS with Gower Distance by Position", type = "n")
@@ -363,6 +430,100 @@ text(mds_points_gower[, 1], mds_points_gower[, 2],
      labels = df$POSITION, cex = 0.7, pos = 4)  # Replace 'Position' with the actual column name for position
 
 ```
+
+```{r}
+
+# List of column names in df to iterate over
+value_columns <- c("GP", "GS", "PTS", "OR", "DR", "TR", "AST", "STL", "TO", "BLK", "BLKA", "FC", "FD", "PIR")  # Add more column names as needed
+# Number of colors for the gradient
+num_colors <- 100  
+
+# Loop through each specified column
+for (col_name in value_columns) {
+  # Extract values for the current column
+  values <- df[[col_name]]
+  
+  # Normalize values for color mapping
+  p_norm <- (values - min(values)) / (max(values) - min(values)) * (num_colors - 1) + 1
+  
+  # Get corresponding colors from the gradient
+  point_colors <- create_gradient(num_colors)[as.integer(p_norm)]
+  
+  # Create the MDS plot for the current column
+  plot(mds_points_gower[, 1], mds_points_gower[, 2],
+       xlab = "Coordinate 1", ylab = "Coordinate 2",
+       main = paste("MDS Plot for", col_name),  # Add title
+       type = "n")  # Initialize the plot without points
+  
+  # Add points with colors based on normalized values
+  points(mds_points_gower[, 1], mds_points_gower[, 2], col = point_colors, pch = 19)
+  
+  # Add text labels with corresponding colors
+  text(mds_points_gower[, 1], mds_points_gower[, 2],
+       labels = values, cex = 0.7, pos = 4, col = point_colors)
+}
+
+# Position color map
+positions <- unique(df$POSITION)
+position_colors <- rainbow(length(positions))  # You can use other color palettes too
+color_map <- setNames(position_colors, positions)
+
+# POSITION color plot
+plot(mds_points_gower[, 1], mds_points_gower[, 2],
+     xlab = "Coordinate 1", ylab = "Coordinate 2",
+     main = "Plot for (Positions)", 
+     type = "n",
+     col = color_map[df$POSITION], pch = 19)
+  # Add text labels with corresponding colors
+  text(mds_points_gower[, 1], mds_points_gower[, 2],
+       labels = df$POSITION,  col = color_map[df$POSITION], cex = 0.7, pos = 4)
+  
+  
+# Position color map
+teams <- unique(df$TEAM)
+teams_colors <- rainbow(length(teams))  # You can use other color palettes too
+color_map <- setNames(teams_colors, teams)
+
+# POSITION color plot
+plot(mds_points_gower[, 1], mds_points_gower[, 2],
+     xlab = "Coordinate 1", ylab = "Coordinate 2",
+     main = "Plot for (Teams)", 
+     type = "n",
+     col = color_map[df$TEAM], pch = 19)
+  # Add text labels with corresponding colors
+  text(mds_points_gower[, 1], mds_points_gower[, 2],
+       labels = df$TEAM,  col = color_map[df$TEAM], cex = 0.7, pos = 4)
+```
+
+#### PIR
+  
+```{r}
+values <- df$PIR
+
+# Define a function to create a color gradient from black to red
+create_gradient <- function(n) {
+  colorRampPalette(c("navy", "red"))(n)
+}
+
+# normalize PIR color map
+p <- values
+num_colors <- 100  # You can adjust this as needed
+p_norm <- (p - min(p)) / (max(p) - min(p)) * (num_colors - 1) + 1
+point_colors <- create_gradient(num_colors)[as.integer(p_norm)]
+
+# PIR color plot
+plot(mds_points_gower[, 1], mds_points_gower[, 2],
+     xlab = "Coordinate 1", ylab = "Coordinate 2",
+     type = "n",
+     col = point_colors, pch = 19)
+text(mds_points_gower[, 1], mds_points_gower[, 2],
+     labels = values, cex = 0.7, pos = 4,
+     col = point_colors
+     )
+
+
+```
+
 ### h) Which MDS do you think better group the individuals? Why?
 ```{r}
 
